@@ -2,8 +2,11 @@ import express from 'express';
 import 'dotenv/config';
 import { connectDb } from './db/mongodb.js';
 import cors from 'cors';
+import { ObjectId } from 'mongodb';
+import { verifyToken } from './middleware/verifyUser.js';
+
 const app = express();
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 5000;
 
 let db;
 
@@ -19,7 +22,7 @@ app.get('/all-books', async (req, res) => {
 });
 
 // Add a new book api
-app.post('/add-book', async (req, res) => {
+app.post('/add-book', verifyToken, async (req, res) => {
     try {
         const newBook = req.body;
 
@@ -37,8 +40,36 @@ app.post('/add-book', async (req, res) => {
     }
 });
 
-app.get('/', (req, res) => {
-    res.send('Hello World!');
+app.get('/book/:id', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                message: 'Invalid book ID',
+            });
+        }
+
+        const book = await db.collection('books').findOne({
+            _id: new ObjectId(id),
+        });
+
+        if (!book) {
+            return res.status(404).json({
+                message: 'Book not found',
+            });
+        }
+
+        return res.status(200).json({
+            book,
+        });
+    } catch (error) {
+        console.error('Get book error:', error);
+
+        return res.status(500).json({
+            message: 'Failed to fetch book',
+        });
+    }
 });
 
 // Start server after MongoDB connection
