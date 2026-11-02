@@ -14,14 +14,14 @@ let db;
 app.use(express.json());
 app.use(cors());
 
-// Routes
+// all books GET api
 app.get('/all-books', async (req, res) => {
     const books = await db.collection('books').find().toArray();
 
     res.send(books);
 });
 
-// Add a new book api
+// Add a new book Create api
 app.post('/add-book', verifyToken, async (req, res) => {
     try {
         const newBook = req.body;
@@ -40,6 +40,7 @@ app.post('/add-book', verifyToken, async (req, res) => {
     }
 });
 
+// Get a single book by ID
 app.get('/book/:id', verifyToken, async (req, res) => {
     try {
         const { id } = req.params;
@@ -68,6 +69,23 @@ app.get('/book/:id', verifyToken, async (req, res) => {
 
         return res.status(500).json({
             message: 'Failed to fetch book',
+        });
+    }
+});
+
+// Get books by user email
+app.get('/my-books/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const books = await db.collection('books').find({ userId }).toArray();
+
+        return res.status(200).json(books);
+    } catch (error) {
+        console.error('Get my books error:', error);
+
+        return res.status(500).json({
+            message: 'Failed to fetch user books',
         });
     }
 });
