@@ -74,7 +74,7 @@ app.get('/book/:id', verifyToken, async (req, res) => {
 });
 
 // Get books by user email
-app.get('/my-books/:userId', async (req, res) => {
+app.get('/my-books/:userId', verifyToken, async (req, res) => {
     try {
         const { userId } = req.params;
 
@@ -86,6 +86,38 @@ app.get('/my-books/:userId', async (req, res) => {
 
         return res.status(500).json({
             message: 'Failed to fetch user books',
+        });
+    }
+});
+// Delete a book by ID
+app.delete('/delete-book/:id', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                message: 'Invalid book ID',
+            });
+        }
+
+        const result = await db.collection('books').deleteOne({
+            _id: new ObjectId(id),
+        });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({
+                message: 'Book not found',
+            });
+        }
+
+        return res.status(200).json({
+            message: 'Book deleted successfully',
+        });
+    } catch (error) {
+        console.error('Delete book error:', error);
+
+        return res.status(500).json({
+            message: 'Failed to delete book',
         });
     }
 });
