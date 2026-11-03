@@ -236,6 +236,29 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
     }
 });
 
+// Get all Borrow by user ID
+app.get('/all-borrow/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const borrow = await db
+            .collection('borrows')
+            .find({ userId: id })
+            .toArray();
+
+        res.status(200).json({
+            success: true,
+            message: 'Borrow books fetched successfully',
+            data: borrow,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Failed to Get all borrow book',
+        });
+    }
+});
+
 // Start server after MongoDB connection
 const startServer = async () => {
     try {
