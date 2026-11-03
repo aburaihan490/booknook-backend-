@@ -15,7 +15,7 @@ export const verifyToken = async (req, res, next) => {
         );
 
         const { payload } = await jwtVerify(token, JWKS);
-
+        req.user = payload; // req.user save the data payload
         next();
     } catch (error) {
         return res.status(401).json({

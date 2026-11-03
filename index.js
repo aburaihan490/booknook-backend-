@@ -156,6 +156,86 @@ app.put('/update-book/:id', verifyToken, async (req, res) => {
     }
 });
 
+// Borrow Added by ID
+app.post('/add-borrow/:id', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = req.user;
+
+        console.log(user);
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid book ID',
+            });
+        }
+
+        if (!user?.email) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized user',
+            });
+        }
+
+        // Check copies and decrease by 1
+        const book = await db.collection('books').findOneAndUpdate(
+            {
+                _id: new ObjectId(id),
+                copies: { $gt: 0 },
+            },
+            {
+                $inc: { copies: -1 },
+            },
+            {
+                returnDocument: 'after',
+            },
+        );
+
+        if (!book) {
+            return res.status(400).json({
+                success: false,
+                message: 'Book is unavailable',
+            });
+        }
+
+        try {
+            const borrowDate = new Date();
+
+            const borrowData = {
+                bookId: book._id,
+                title: book.title,
+                author: book.author,
+                cover: book.cover,
+                userEmail: user.email,
+                userId: user.id,
+                borrowDate,
+            };
+
+            await db.collection('borrows').insertOne(borrowData);
+
+            return res.status(201).json({
+                success: true,
+                message: 'Book borrowed successfully',
+            });
+        } catch (error) {
+            // If borrow insert fails, restore copies
+            await db
+                .collection('books')
+                .updateOne({ _id: book._id }, { $inc: { copies: 1 } });
+
+            throw error;
+        }
+    } catch (error) {
+        console.error('Borrow book error:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to borrow book',
+        });
+    }
+});
+
 // Start server after MongoDB connection
 const startServer = async () => {
     try {
