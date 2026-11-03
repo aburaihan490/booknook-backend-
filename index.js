@@ -122,6 +122,40 @@ app.delete('/delete-book/:id', verifyToken, async (req, res) => {
     }
 });
 
+// Update a book by ID
+app.put('/update-book/:id', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updatedBook = req.body;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                message: 'Invalid book ID',
+            });
+        }
+
+        const result = await db
+            .collection('books')
+            .updateOne({ _id: new ObjectId(id) }, { $set: updatedBook });
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({
+                message: 'Book not found',
+            });
+        }
+
+        return res.status(200).json({
+            message: 'Book updated successfully',
+        });
+    } catch (error) {
+        console.error('Update book error:', error);
+
+        return res.status(500).json({
+            message: 'Failed to update book',
+        });
+    }
+});
+
 // Start server after MongoDB connection
 const startServer = async () => {
     try {
