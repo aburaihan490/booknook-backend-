@@ -4,6 +4,9 @@ import { connectDb } from './db/mongodb.js';
 import cors from 'cors';
 import { ObjectId } from 'mongodb';
 import { verifyToken } from './middleware/verifyUser.js';
+import { upload } from './middleware/multer.js';
+import { uploadImage } from './lib/cloudinary.js';
+import fs from 'fs';
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -12,7 +15,12 @@ let db;
 
 // Middlewares
 app.use(express.json());
-app.use(cors());
+app.use(express.urlencoded({ extended: true }));
+app.use(
+    cors({
+        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    }),
+);
 
 // all books GET api
 app.get('/all-books', async (req, res) => {
@@ -22,17 +30,47 @@ app.get('/all-books', async (req, res) => {
 });
 
 // Add a new book Create api
-app.post('/add-book', verifyToken, async (req, res) => {
+app.post('/add-book', verifyToken, upload.single('cover'), async (req, res) => {
     try {
         const newBook = req.body;
+        const newBookimg = req.file;
 
-        const result = await db.collection('books').insertOne(newBook);
+        // image filed check
+        if (!newBookimg) {
+            return res.status(400).json({ message: 'Cover image is required' });
+        }
+
+        const maxSize = 2 * 1024 * 1024;
+        if (newBookimg.size > maxSize) {
+            if (fs.existsSync(newBookimg.path)) {
+                fs.unlinkSync(newBookimg.path); // ফাইল বড় হলে লোকাল ফোল্ডার থেকে মুছে ফেলুন
+            }
+            return res
+                .status(400)
+                .json({ message: 'File size too large. Maximum size is 2MB.' });
+        }
+
+        // Cloudinary upload cover Image
+        const coverImageUrl = await uploadImage(newBookimg.path);
+
+        const bookData = {
+            ...newBook,
+            cover: coverImageUrl.secureUrl, // Cloudinary secure URL সেভ হবে
+            coverId: coverImageUrl.publicId, // Cloudinary secure URL সেভ হবে
+            rating: newBook.rating ? parseFloat(newBook.rating) : 0,
+            copies: newBook.copies ? parseInt(newBook.copies) : 0,
+            createdAt: new Date(),
+        };
+        const result = await db.collection('books').insertOne(bookData);
 
         return res.status(201).json({
             message: 'Book added successfully',
             bookId: result,
         });
     } catch (error) {
+        if (req.file && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
         res.status(500).json({
             message: 'Failed to add book',
             error: error.message,
@@ -176,6 +214,19 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
             });
         }
 
+        // Check existing Borrow
+        const existingBorrow = await db.collection('borrows').findOne({
+            bookId: new ObjectId(id),
+            userId: user.id,
+        });
+
+        if (existingBorrow) {
+            return res.status(409).json({
+                success: false,
+                message: 'You have already borrowed this book',
+            });
+        }
+
         // Check copies and decrease by 1
         const book = await db.collection('books').findOneAndUpdate(
             {
@@ -199,6 +250,8 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
 
         try {
             const borrowDate = new Date();
+            const returnDate = new Date(borrowDate);
+            returnDate.setDate(returnDate.getDate() + 7);
 
             const borrowData = {
                 bookId: book._id,
@@ -208,6 +261,7 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
                 userEmail: user.email,
                 userId: user.id,
                 borrowDate,
+                returnDate,
             };
 
             await db.collection('borrows').insertOne(borrowData);
@@ -235,13 +289,20 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
 });
 
 // Get all Borrow by user ID
-app.get('/all-borrow/:id', async (req, res) => {
+app.get('/all-borrow', verifyToken, async (req, res) => {
     try {
-        const { id } = req.params;
+        const user = req.user;
+
+        if (!user?.id) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized user',
+            });
+        }
 
         const borrow = await db
             .collection('borrows')
-            .find({ userId: id })
+            .find({ userId: user.id })
             .toArray();
 
         res.status(200).json({
