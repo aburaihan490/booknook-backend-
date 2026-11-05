@@ -24,9 +24,22 @@ app.use(
 
 // all books GET api
 app.get('/all-books', async (req, res) => {
-    const books = await db.collection('books').find().toArray();
+    try {
+        const books = await db.collection('books').find().toArray();
 
-    res.send(books);
+        res.status(200).json({
+            success: true,
+            total: books.length,
+            books,
+        });
+    } catch (error) {
+        console.error('Error fetching books:', error);
+
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch books',
+        });
+    }
 });
 
 // Add a new book Create api

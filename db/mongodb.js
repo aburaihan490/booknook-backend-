@@ -7,24 +7,41 @@ if (!uri) {
     throw new Error('MONGODB_URL is missing from .env file');
 }
 
-const client = new MongoClient(uri, {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-    },
-});
+let client;
+let clientPromise;
+
+// গ্লোবাল ভেরিয়েবল ব্যবহার করা যাতে Vercel-এর কোল্ড স্টার্টে বারবার নতুন ক্লায়েন্ট তৈরি না হয়
+if (process.env.NODE_ENV === 'development') {
+    // ডেভেলপমেন্ট মোডে গ্লোবাল ভেরিয়েবল ব্যবহার করা ভালো যেন হট রিলোডে সমস্যা না হয়
+    if (!global._mongoClientPromise) {
+        client = new MongoClient(uri, {
+            serverApi: {
+                version: ServerApiVersion.v1,
+                strict: true,
+                deprecationErrors: true,
+            },
+        });
+        global._mongoClientPromise = client.connect();
+    }
+    clientPromise = global._mongoClientPromise;
+} else {
+    // প্রডাকশন (Vercel) মোডের জন্য
+    client = new MongoClient(uri, {
+        serverApi: {
+            version: ServerApiVersion.v1,
+            strict: true,
+            deprecationErrors: true,
+        },
+    });
+    clientPromise = client.connect();
+}
 
 export async function connectDb() {
     try {
-        await client.connect();
+        const connectedClient = await clientPromise;
 
         // Get Database instance
-        const db = client.db('booknook');
-
-        // Check database connection
-        await db.command({ ping: 1 });
-        console.log('MongoDB connected successfully!');
+        const db = connectedClient.db('booknook');
 
         return db;
     } catch (error) {
