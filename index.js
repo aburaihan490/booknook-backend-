@@ -49,32 +49,34 @@ app.post('/add-book', verifyToken, upload.single('cover'), async (req, res) => {
     try {
         const db = await connectDb();
         const newBook = req.body;
-        // const newBookimg = req.file;
+        const newBookimg = req.file;
 
-        // if (!newBookimg) {
-        //     return res.status(400).json({ message: 'Cover image is required' });
-        // }
+        if (!newBookimg) {
+            return res.status(400).json({ message: 'Cover image is required' });
+        }
 
-        // const maxSize = 2 * 1024 * 1024;
-        // if (newBookimg.size > maxSize) {
-        //     if (fs.existsSync(newBookimg.path)) {
-        //         fs.unlinkSync(newBookimg.path);
-        //     }
-        //     return res
-        //         .status(400)
-        //         .json({ message: 'File size too large. Maximum size is 2MB.' });
-        // }
+        const maxSize = 2 * 1024 * 1024;
+        if (newBookimg.size > maxSize) {
+            if (fs.existsSync(newBookimg.path)) {
+                fs.unlinkSync(newBookimg.path);
+            }
+            return res
+                .status(400)
+                .json({ message: 'File size too large. Maximum size is 2MB.' });
+        }
 
-        // const coverImageUrl = await uploadImage(newBookimg.path);
+        const coverImageUrl = await uploadImage(newBookimg.path);
 
         const bookData = {
             ...newBook,
-            // cover: coverImageUrl.secureUrl,
-            // coverId: coverImageUrl.publicId,
+            cover: coverImageUrl.secureUrl,
+            coverId: coverImageUrl.publicId,
             rating: newBook.rating ? parseFloat(newBook.rating) : 0,
             copies: newBook.copies ? parseInt(newBook.copies) : 0,
             createdAt: new Date(),
         };
+
+        console.log(bookData);
         const result = await db.collection('books').insertOne(bookData);
 
         return res.status(201).json({
