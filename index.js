@@ -16,7 +16,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
     cors({
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: process.env.FRONTEND_URL,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
     }),
 );
 
@@ -205,12 +208,10 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
         });
 
         if (existingBorrow) {
-            return res
-                .status(409)
-                .json({
-                    success: false,
-                    message: 'You have already borrowed this book',
-                });
+            return res.status(409).json({
+                success: false,
+                message: 'You have already borrowed this book',
+            });
         }
 
         const book = await db
@@ -322,12 +323,10 @@ app.delete('/delete-borrow/:id', verifyToken, async (req, res) => {
                 .json({ success: false, message: 'Borrow record not found' });
         }
 
-        const updateBook = await db
-            .collection('books')
-            .updateOne(
-                { _id: newObjectId(borrow.bookId) },
-                { $inc: { copies: 1 } },
-            );
+        const updateBook = await db.collection('books').updateOne(
+            { _id: new ObjectId(borrow.bookId) }, // <--- ঠিক করা হলো (new ObjectId)
+            { $inc: { copies: 1 } },
+        );
 
         if (updateBook.matchedCount === 0) {
             return res
