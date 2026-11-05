@@ -162,8 +162,6 @@ app.post('/add-borrow/:id', verifyToken, async (req, res) => {
         const { id } = req.params;
         const user = req.user;
 
-        console.log(user);
-
         if (!ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -255,6 +253,76 @@ app.get('/all-borrow/:id', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to Get all borrow book',
+        });
+    }
+});
+
+// user boorow book return
+app.delete('/delete-borrow/:id', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = req.user;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid borrow ID',
+            });
+        }
+
+        if (!user?.email) {
+            return res.status(401).json({
+                success: false,
+                message: 'Unauthorized user',
+            });
+        }
+
+        // Find borrow record belonging to this user
+        const borrow = await db.collection('borrows').findOne({
+            _id: new ObjectId(id),
+            userEmail: user.email,
+        });
+
+        if (!borrow) {
+            return res.status(404).json({
+                success: false,
+                message: 'Borrow record not found',
+            });
+        }
+
+        // Increase original book copies by 1
+        const updateBook = await db.collection('books').updateOne(
+            {
+                _id: new ObjectId(borrow.bookId),
+            },
+            {
+                $inc: { copies: 1 },
+            },
+        );
+
+        if (updateBook.matchedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Original book not found',
+            });
+        }
+
+        // Delete borrow record
+        await db.collection('borrows').deleteOne({
+            _id: new ObjectId(id),
+            userEmail: user.email,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Book returned successfully',
+        });
+    } catch (error) {
+        console.error('Return book error:', error);
+
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to return book',
         });
     }
 });
